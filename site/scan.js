@@ -192,6 +192,9 @@
       tool_choice: { type: "tool", name: "save_role_tracks" }
     };
 
+    var controller = new AbortController();
+    var timeout = setTimeout(function () { controller.abort(); }, 60000);
+
     return fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -200,7 +203,8 @@
         "anthropic-version": "2023-06-01",
         "anthropic-dangerous-direct-browser-access": "true"
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal: controller.signal
     }).then(function (res) {
       return res.json().then(function (json) {
         if (!res.ok) {
@@ -211,7 +215,10 @@
         if (!block) throw new Error("Claude didn't return structured tracks — try again.");
         return block.input;
       });
-    });
+    }).catch(function (err) {
+      if (err && err.name === "AbortError") throw new Error("Claude took too long to respond (60s) — try again.");
+      throw err;
+    }).finally(function () { clearTimeout(timeout); });
   }
 
   /* ---------------- public entry point ---------------- */
@@ -247,8 +254,14 @@
     });
   }
 
+  /** The File System Access API needs a "secure context" and is
+   * entirely unavailable on file:// pages — Chromium doesn't reject the
+   * call there, it just never resolves, which looks like a silent hang.
+   * So a bare file:// page must use the <input webkitdirectory>
+   * fallback (works regardless of origin) even where the function
+   * exists on window. */
   function supportsDirectoryPicker() {
-    return typeof window.showDirectoryPicker === "function";
+    return typeof window.showDirectoryPicker === "function" && window.location.protocol !== "file:";
   }
 
   global.Scan = {
