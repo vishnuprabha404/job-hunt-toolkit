@@ -151,12 +151,23 @@ undocumented parameters; the shapes currently in that file were confirmed agains
 
 **`scan.js` — "Scan my folder":** reads `resumes/*.pdf`/`.docx` and `answers.md`/`questions.md`
 straight off the visitor's disk via the File System Access API (`window.showDirectoryPicker()`,
-Chromium-only, requires http(s) — not `file://`; a `<input webkitdirectory>` fallback handles
-browsers without it, one-shot/read-only), extracts text client-side (`pdf.js` for PDFs — loaded
-as an ES module via dynamic `import()`, confirmed cdnjs only ships `.mjs` builds at the pinned
-version; `JSZip` + `DOMParser` for `.docx`, mirroring the `word/document.xml` → `<w:t>` text-run
-extraction the chat workflow does with Python's `zipfile`/`ElementTree`), then calls Claude's
-Messages API **directly from the browser** to infer role tracks and map each resume to one:
+Chromium-only and requires a non-`file:` origin) with a `<input webkitdirectory>` fallback
+(one-shot/read-only, but works on any origin including a bare `file://` page — see
+`supportsDirectoryPicker()`, which checks `location.protocol` explicitly rather than trusting
+feature-detection alone, since Chromium defines `showDirectoryPicker` on `file://` pages but the
+call just never resolves there instead of rejecting). Extracts text client-side:
+- **PDFs** via `pdf.js` — deliberately pinned to **3.11.174**, the last line with a classic UMD
+  build (`pdf.min.js` exposing a `window.pdfjsLib` global); cdnjs only ships `.mjs` builds at
+  latest, and dynamic `import()` of a module silently never resolves on a `file://` page the same
+  way `showDirectoryPicker` does — same failure shape, same fix (avoid it, don't detect around
+  it). Also passes `disableWorker: true` to `getDocument()`: pdf.js's background Worker is loaded
+  from a cross-origin (CDN) script URL, which is blocked the same way on `file://`; resumes are a
+  page or two, so running extraction on the main thread costs nothing noticeable.
+- **`.docx`** via `JSZip` + `DOMParser` on `word/document.xml`'s `<w:t>` runs, mirroring the
+  extraction the chat workflow does with Python's `zipfile`/`ElementTree`.
+
+Then it calls Claude's Messages API **directly from the browser** to infer role tracks and map
+each resume to one:
 - Confirmed live (2026-09-07): `api.anthropic.com` allows direct browser calls, but only with
   the `anthropic-dangerous-direct-browser-access: true` header sent alongside `x-api-key` and
   `anthropic-version` — the OPTIONS preflight returns `access-control-allow-origin: *` only when

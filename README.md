@@ -35,9 +35,10 @@ file requests — serving it, even just for a minute, avoids that entirely.)
      into Settings, then click **Scan my folder…** on the New Search tab and point it at this
      repo's folder. Claude reads whatever's in `resumes/` (plus `answers.md`/`questions.md` if
      you have them) and proposes role tracks — name, which resume fits each, and sensible
-     search defaults — for you to review and save. Needs a Chromium-based browser (Chrome, Edge,
-     Brave) for the folder picker, and the page must be served over `http(s)`, not opened as a
-     bare file — the `python3 -m http.server` step above covers that.
+     search defaults — for you to review and save. Works either way you run the site (served via
+     `http://localhost` or opened directly as a `file://` page); a Chromium browser (Chrome,
+     Edge, Brave) serving it over `http(s)` gets the nicer native folder picker, everything else
+     falls back to a plain folder-select dialog that works the same.
    - **Manually** — in Settings, add your role tracks (e.g. "IT Support", "Software Developer")
      and, if you want the reminder, which resume file to use for each.
 3. Go to **New search**, fill in role / city / experience / freshness, hit Search.

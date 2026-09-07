@@ -1,30 +1,44 @@
 /* scan.js — "Scan my folder": reads resumes/answers.md/questions.md
  * straight off disk (via the File System Access API, with a plain
- * <input webkitdirectory> fallback), extracts their text client-side,
- * and asks Claude's API (the visitor's own key, called directly from
- * the browser — same trust model as firecrawl.js) to infer role tracks
- * and map each resume to one. Nothing is written to Store until the
- * visitor reviews and confirms the result.
+ * <input webkitdirectory> fallback for file:// pages, where that API
+ * is unavailable), extracts their text client-side, and asks Claude's
+ * API (the visitor's own key, called directly from the browser — same
+ * trust model as firecrawl.js) to infer role tracks and map each
+ * resume to one. Nothing is written to Store until the visitor reviews
+ * and confirms the result.
  *
- * Requires a Chromium-based browser for the directory picker
- * (window.showDirectoryPicker) and, either way, a page served over
- * http(s) — not file:// — because that API and the ES-module CDN
- * builds this file lazy-loads both require a secure/regular origin.
+ * Deliberately loads pdf.js as a classic UMD script (an older pinned
+ * version — cdnjs only ships ES-module builds at latest), not via
+ * dynamic import(): Chromium silently never resolves a module import
+ * on a file:// page (no error, just hangs forever), which is exactly
+ * the bug this avoids. Keeping this file:// too — not just the
+ * directory-picker fallback — means "Scan my folder" works whether or
+ * not the visitor bothered running a local server.
  */
 (function (global) {
   "use strict";
 
-  var PDFJS_VERSION = "6.3.289";
-  var PDFJS_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/" + PDFJS_VERSION + "/pdf.min.mjs";
-  var PDFJS_WORKER_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/" + PDFJS_VERSION + "/pdf.worker.min.mjs";
+  var PDFJS_VERSION = "3.11.174";
+  var PDFJS_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/" + PDFJS_VERSION + "/pdf.min.js";
+  var PDFJS_WORKER_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/" + PDFJS_VERSION + "/pdf.worker.min.js";
   var MAX_CHARS_PER_FILE = 6000;
+
+  function loadScript(url) {
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement("script");
+      s.src = url;
+      s.onload = function () { resolve(); };
+      s.onerror = function () { reject(new Error("Couldn't load " + url + " — check your internet connection.")); };
+      document.head.appendChild(s);
+    });
+  }
 
   var _pdfjsPromise = null;
   function loadPdfjs() {
     if (!_pdfjsPromise) {
-      _pdfjsPromise = import(PDFJS_URL).then(function (mod) {
-        mod.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
-        return mod;
+      _pdfjsPromise = (typeof window.pdfjsLib !== "undefined" ? Promise.resolve() : loadScript(PDFJS_URL)).then(function () {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
+        return window.pdfjsLib;
       });
     }
     return _pdfjsPromise;
@@ -32,7 +46,11 @@
 
   function pdfToText(arrayBuffer) {
     return loadPdfjs().then(function (pdfjsLib) {
-      return pdfjsLib.getDocument({ data: arrayBuffer }).promise.then(function (doc) {
+      // disableWorker: a background Worker loaded from a cross-origin
+      // (CDN) script URL is blocked on file:// pages too — resumes are
+      // a page or two, so running on the main thread costs nothing
+      // noticeable and sidesteps that failure mode entirely.
+      return pdfjsLib.getDocument({ data: arrayBuffer, disableWorker: true }).promise.then(function (doc) {
         var pages = [];
         for (var i = 1; i <= doc.numPages; i++) pages.push(i);
         return pages.reduce(function (chain, pageNum) {
