@@ -1,0 +1,21 @@
+# --- Personal to whoever runs this toolkit — never committed ---
+answers.md
+resumes/*
+!resumes/.gitkeep
+!resumes/README.md
+results.xlsx
+results.xls
+.~lock.*#
+*.local.json
+
+# --- Python (results.xlsx tooling) ---
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# --- OS / editor cruft ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

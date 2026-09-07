@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claim — job board</title>
+<meta name="description" content="A private, client-side job board: search Firecrawl directly from your browser, track what you've applied to. No account, no backend, no Claude sign-in.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9A%A9%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="brand">
+      <h1>Claim</h1>
+      <span class="tag">Job board · runs entirely in your browser</span>
+    </div>
+    <div class="top-actions">
+      <button class="iconbtn" id="openSettings"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v1.6M8 12.9v1.6M14.5 8h-1.6M3.1 8H1.5M12.5 3.5l-1.1 1.1M4.6 11.3l-1.1 1.1M12.5 12.5l-1.1-1.1M4.6 4.7 3.5 3.6"/></svg>Settings</button>
+    </div>
+  </header>
+
+  <div class="tabs">
+    <button data-tab="search" class="active">New search</button>
+    <button data-tab="board">My board</button>
+  </div>
+
+  <!-- ============ SEARCH TAB ============ -->
+  <section class="tabpanel" id="panel-search">
+    <form class="searchcard" id="searchForm">
+      <h2>Search Firecrawl</h2>
+
+      <div class="field-grid">
+        <div class="field">
+          <label for="roleInput">Role</label>
+          <input type="text" id="roleInput" placeholder="e.g. IT support technician" required>
+        </div>
+        <div class="field">
+          <label for="cityInput">City (or "remote")</label>
+          <input type="text" id="cityInput" placeholder="e.g. Sudbury, ON">
+        </div>
+        <div class="field">
+          <label>Years of experience</label>
+          <div class="field-row-2">
+            <input type="number" id="expMinInput" min="0" value="0" style="width:64px">
+            <span>to</span>
+            <input type="number" id="expMaxInput" min="0" value="1" style="width:64px">
+          </div>
+        </div>
+        <div class="field">
+          <label for="freshnessSelect">Posted within</label>
+          <select id="freshnessSelect">
+            <option value="week" selected>This week</option>
+            <option value="day">Today</option>
+            <option value="month">This month</option>
+            <option value="any">Any time</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="trackSelect">Role track</label>
+          <select id="trackSelect"></select>
+        </div>
+        <div class="field">
+          <label for="limitInput">Results to fetch</label>
+          <input type="number" id="limitInput" min="3" max="30" value="15">
+        </div>
+      </div>
+
+      <div class="searchcard-footer">
+        <label class="enrich-toggle">
+          Read full details for top
+          <input type="number" id="enrichInput" min="0" max="15" value="6">
+          results (uses more credits)
+        </label>
+        <button type="submit" class="btn-primary" id="searchBtn">Search &nbsp;<svg viewBox="0 0 10 10" fill="none" stroke="currentColor" style="width:11px;height:11px;"><path d="M2 8L8 2M8 2H3.5M8 2V6.5" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      </div>
+      <div class="searchstatus" id="searchStatus">Skips LinkedIn, Indeed, Facebook, Reddit &amp; other aggregators by default — prefers company career pages. Change this and set your Firecrawl API key in Settings.</div>
+    </form>
+  </section>
+
+  <!-- ============ BOARD TAB ============ -->
+  <section class="tabpanel" id="panel-board" hidden>
+    <div class="chiprow" id="chipRow"></div>
+
+    <div class="filterbar">
+      <input type="search" id="boardSearch" placeholder="Search title or company…" aria-label="Search listings">
+      <div class="segmented" id="statusSeg">
+        <button data-status="all" class="active">All</button>
+        <button data-status="open">Not applied</button>
+        <button data-status="applied">Applied</button>
+      </div>
+      <select id="sortSelect" aria-label="Sort listings">
+        <option value="new">Newest logged</option>
+        <option value="company">Company A&ndash;Z</option>
+        <option value="track">Role track</option>
+      </select>
+      <span class="badge" id="boardMeta" style="border:none;font-family:inherit;text-transform:none;letter-spacing:normal;"></span>
+    </div>
+
+    <div class="cardlist" id="cardList"></div>
+
+    <div class="legend">
+      <h2>Resume to use per track</h2>
+      <div class="legend-grid" id="legendGrid"></div>
+    </div>
+
+    <div class="legend" style="margin-top:10px;">
+      <h2>Import / export</h2>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+        <button class="btn-secondary" id="exportCsvBtn">Export CSV</button>
+        <label class="btn-secondary" style="cursor:pointer;">
+          Import CSV
+          <input type="file" id="importCsvInput" accept=".csv" style="display:none;">
+        </label>
+        <span class="note" style="color:var(--text-muted);font-size:12.5px;">Also accepts results.xlsx exported as CSV.</span>
+      </div>
+    </div>
+  </section>
+
+  <footer class="note">
+    Runs fully client-side — your Firecrawl key and every listing stay in this browser's local storage.
+    Part of the <a href="https://github.com/" target="_blank" rel="noopener">job-hunt-toolkit</a> workflow — see the repo's <code>README.md</code>.
+  </footer>
+</div>
+
+<!-- ============ SETTINGS MODAL ============ -->
+<div class="modal-backdrop" id="settingsModal" hidden>
+  <div class="modal">
+    <h2>Settings</h2>
+    <p>Your Firecrawl key never leaves this browser — it's sent only to api.firecrawl.dev, directly from your device.</p>
+
+    <div class="field">
+      <label for="apiKeyInput">Firecrawl API key (optional)</label>
+      <input type="password" id="apiKeyInput" placeholder="fc-… — leave blank to use keyless (lower rate limit)">
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button type="button" class="btn-secondary" id="saveKeyBtn">Save key</button>
+        <button type="button" class="btn-secondary" id="clearKeyBtn">Clear</button>
+      </div>
+      <div class="status-line" id="keyStatus">Get a free key (1,000 credits/month) at <a href="https://www.firecrawl.dev" target="_blank" rel="noopener">firecrawl.dev</a>.</div>
+    </div>
+
+    <div class="field">
+      <label>Role tracks &amp; resume mapping</label>
+      <div id="trackEditor"></div>
+      <div style="display:flex;gap:8px;margin-top:6px;">
+        <input type="text" id="newTrackInput" placeholder="Add a role track…" style="flex:1;">
+        <button type="button" class="btn-secondary" id="addTrackBtn">Add</button>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <span></span>
+      <button type="button" class="btn-primary" id="closeSettings">Done</button>
+    </div>
+  </div>
+</div>
+
+<script src="store.js"></script>
+<script src="firecrawl.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
