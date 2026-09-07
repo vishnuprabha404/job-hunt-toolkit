@@ -28,6 +28,16 @@
 
   <!-- ============ SEARCH TAB ============ -->
   <section class="tabpanel" id="panel-search">
+    <div class="scanbanner" id="scanBanner">
+      <div>
+        <strong>Set this up from your resumes</strong>
+        <p>Point this at your <code>job-hunt-toolkit</code> folder — Claude reads what's in
+          <code>resumes/</code> (and <code>answers.md</code>/<code>questions.md</code> if present)
+          and works out your role tracks for you.</p>
+      </div>
+      <button type="button" class="btn-secondary" id="scanBtn">Scan my folder&hellip;</button>
+    </div>
+
     <form class="searchcard" id="searchForm">
       <h2>Search Firecrawl</h2>
 
@@ -78,6 +88,8 @@
       <div class="searchstatus" id="searchStatus">Skips LinkedIn, Indeed, Facebook, Reddit &amp; other aggregators by default — prefers company career pages. Change this and set your Firecrawl API key in Settings.</div>
     </form>
   </section>
+
+  <input type="file" id="scanFallbackInput" webkitdirectory multiple style="display:none;">
 
   <!-- ============ BOARD TAB ============ -->
   <section class="tabpanel" id="panel-board" hidden>
@@ -141,6 +153,16 @@
     </div>
 
     <div class="field">
+      <label for="anthropicKeyInput">Claude API key (optional — only for "Scan my folder")</label>
+      <input type="password" id="anthropicKeyInput" placeholder="sk-ant-… — needed to have Claude read your resumes">
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button type="button" class="btn-secondary" id="saveAnthropicKeyBtn">Save key</button>
+        <button type="button" class="btn-secondary" id="clearAnthropicKeyBtn">Clear</button>
+      </div>
+      <div class="status-line" id="anthropicKeyStatus">Called directly from this browser, same as Firecrawl. Get a key at <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a>.</div>
+    </div>
+
+    <div class="field">
       <label>Role tracks &amp; resume mapping</label>
       <div id="trackEditor"></div>
       <div style="display:flex;gap:8px;margin-top:6px;">
@@ -156,8 +178,26 @@
   </div>
 </div>
 
+<!-- ============ SCAN REVIEW MODAL ============ -->
+<div class="modal-backdrop" id="scanModal" hidden>
+  <div class="modal modal-wide">
+    <h2>Scan results</h2>
+    <p id="scanSummary">Reading your folder&hellip;</p>
+    <div id="scanBody"></div>
+    <div class="modal-actions">
+      <span class="status-line" id="scanModalStatus"></span>
+      <div style="display:flex;gap:8px;">
+        <button type="button" class="btn-secondary" id="scanCancelBtn">Cancel</button>
+        <button type="button" class="btn-primary" id="scanSaveBtn" hidden>Save these tracks</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="store.js"></script>
 <script src="firecrawl.js"></script>
+<script src="scan.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

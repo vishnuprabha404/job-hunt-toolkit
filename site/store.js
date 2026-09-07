@@ -7,6 +7,7 @@
   var LISTINGS_KEY = "claim.listings.v1";
   var TRACKS_KEY = "claim.tracks.v1";
   var KEY_KEY = "claim.firecrawlKey.v1";
+  var ANTHROPIC_KEY_KEY = "claim.anthropicKey.v1";
   var SETTINGS_KEY = "claim.settings.v1";
 
   var DEFAULT_TRACKS = [
@@ -41,6 +42,10 @@
     }
   }
 
+  function slugifyKey(name) {
+    return name.toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 12) || "custom";
+  }
+
   // djb2 — stable short id from a URL string, so re-adding the same
   // listing (same apply link) updates it instead of duplicating it.
   function hashId(str) {
@@ -64,12 +69,39 @@
     addTrack: function (name) {
       var tracks = Store.getTracks();
       if (tracks.some(function (t) { return t.name.toLowerCase() === name.toLowerCase(); })) return tracks;
-      var key = name.toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 12) || "custom";
-      return Store.setTracks(tracks.concat([{ name: name, key: key }]));
+      return Store.setTracks(tracks.concat([{ name: name, key: slugifyKey(name) }]));
+    },
+
+    /** Merge a set of {name, resumeHint, defaultQuery, rationale} tracks
+     * (e.g. from the "scan my folder" feature) into the existing list —
+     * matched by name, case-insensitive. Updates fields on a match,
+     * appends otherwise; never drops a track the merge doesn't mention. */
+    mergeTracks: function (incoming) {
+      var tracks = Store.getTracks();
+      incoming.forEach(function (inc) {
+        var existing = tracks.find(function (t) { return t.name.toLowerCase() === inc.name.toLowerCase(); });
+        if (existing) {
+          existing.resumeHint = inc.resumeHint || existing.resumeHint;
+          existing.defaultQuery = inc.defaultQuery || existing.defaultQuery;
+          existing.rationale = inc.rationale || existing.rationale;
+        } else {
+          tracks.push({
+            name: inc.name,
+            key: slugifyKey(inc.name),
+            resumeHint: inc.resumeHint,
+            defaultQuery: inc.defaultQuery,
+            rationale: inc.rationale
+          });
+        }
+      });
+      return Store.setTracks(tracks);
     },
 
     getKey: function () { return safeGet(KEY_KEY, ""); },
     setKey: function (k) { safeSet(KEY_KEY, k || ""); },
+
+    getAnthropicKey: function () { return safeGet(ANTHROPIC_KEY_KEY, ""); },
+    setAnthropicKey: function (k) { safeSet(ANTHROPIC_KEY_KEY, k || ""); },
 
     getSettings: function () {
       var s = safeGet(SETTINGS_KEY, null);

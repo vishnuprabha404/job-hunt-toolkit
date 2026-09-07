@@ -66,6 +66,7 @@
 
   function openSettings() {
     document.getElementById("apiKeyInput").value = Store.getKey();
+    document.getElementById("anthropicKeyInput").value = Store.getAnthropicKey();
     renderTrackEditor();
     modal.hidden = false;
   }
@@ -78,6 +79,16 @@
     Store.setKey("");
     document.getElementById("apiKeyInput").value = "";
     document.getElementById("keyStatus").textContent = "Cleared. Search still works keyless (lower rate limit).";
+  });
+
+  document.getElementById("saveAnthropicKeyBtn").addEventListener("click", function () {
+    Store.setAnthropicKey(document.getElementById("anthropicKeyInput").value.trim());
+    document.getElementById("anthropicKeyStatus").textContent = "Saved to this browser.";
+  });
+  document.getElementById("clearAnthropicKeyBtn").addEventListener("click", function () {
+    Store.setAnthropicKey("");
+    document.getElementById("anthropicKeyInput").value = "";
+    document.getElementById("anthropicKeyStatus").textContent = "Cleared. “Scan my folder” will ask for one when needed.";
   });
 
   function renderTrackEditor() {
@@ -123,6 +134,21 @@
     });
     if (current) sel.value = current;
   }
+
+  // Prefill role/city/experience from the selected track's scan-derived
+  // defaults, but only into fields the visitor hasn't already typed in.
+  document.getElementById("trackSelect").addEventListener("change", function () {
+    var selected = this.value;
+    var track = Store.getTracks().find(function (t) { return t.name === selected; });
+    if (!track || !track.defaultQuery) return;
+    var dq = track.defaultQuery;
+    var roleEl = document.getElementById("roleInput");
+    var cityEl = document.getElementById("cityInput");
+    if (!roleEl.value && dq.role) roleEl.value = dq.role;
+    if (!cityEl.value && dq.city) cityEl.value = dq.city;
+    if (dq.expMin != null) document.getElementById("expMinInput").value = dq.expMin;
+    if (dq.expMax != null) document.getElementById("expMaxInput").value = dq.expMax;
+  });
 
   var searchForm = document.getElementById("searchForm");
   var searchStatus = document.getElementById("searchStatus");
@@ -233,6 +259,147 @@
         searchBtn.disabled = false;
       });
   }
+
+  /* ---------------- scan my folder ---------------- */
+  var scanModal = document.getElementById("scanModal");
+  var scanBody = document.getElementById("scanBody");
+  var scanSummary = document.getElementById("scanSummary");
+  var scanModalStatus = document.getElementById("scanModalStatus");
+  var scanSaveBtn = document.getElementById("scanSaveBtn");
+  var pendingScanTracks = null; // rows currently shown for review
+
+  document.getElementById("scanBtn").addEventListener("click", function () {
+    if (!Store.getAnthropicKey()) {
+      openSettings();
+      document.getElementById("anthropicKeyStatus").textContent = "Add a Claude API key here first, then try “Scan my folder” again.";
+      return;
+    }
+    if (Scan.supportsDirectoryPicker()) {
+      window.showDirectoryPicker().then(function (dirHandle) {
+        startScan({ dirHandle: dirHandle });
+      }).catch(function (err) {
+        if (err && err.name === "AbortError") return; // user cancelled the picker
+      });
+    } else {
+      document.getElementById("scanFallbackInput").click();
+    }
+  });
+
+  document.getElementById("scanFallbackInput").addEventListener("change", function (e) {
+    if (e.target.files.length) startScan({ fileList: e.target.files });
+    e.target.value = "";
+  });
+
+  document.getElementById("scanCancelBtn").addEventListener("click", function () { scanModal.hidden = true; });
+  scanModal.addEventListener("click", function (e) { if (e.target === scanModal) scanModal.hidden = true; });
+
+  function startScan(source) {
+    pendingScanTracks = null;
+    scanSaveBtn.hidden = true;
+    scanSummary.textContent = "Reading your folder…";
+    scanBody.innerHTML = "";
+    scanModalStatus.textContent = "";
+    scanModal.hidden = false;
+
+    Scan.scanAndAnalyze(Object.assign({}, source, {
+      onStatus: function (text) { scanSummary.textContent = text; }
+    })).then(function (result) {
+      pendingScanTracks = result.tracks.map(function (t) {
+        return {
+          name: t.name || "Untitled track",
+          resumeFile: t.resumeFile || "",
+          role: t.roleKeywords || "",
+          city: t.suggestedCity || "",
+          expMin: t.expMin != null ? t.expMin : "",
+          expMax: t.expMax != null ? t.expMax : "",
+          rationale: t.rationale || ""
+        };
+      });
+      scanSummary.textContent = result.summary || ("Found " + pendingScanTracks.length + " role track(s). Review before saving:");
+      renderScanReview(result.manifest.resumes.map(function (r) { return r.name; }));
+      scanSaveBtn.hidden = pendingScanTracks.length === 0;
+    }).catch(function (err) {
+      scanSummary.textContent = "Scan failed.";
+      scanBody.innerHTML = '<div class="empty">' + escapeHtml(err.message) + '</div>';
+    });
+  }
+
+  function renderScanReview(resumeFileNames) {
+    scanBody.innerHTML = "";
+    pendingScanTracks.forEach(function (t, idx) {
+      var row = el("div", "scan-track");
+
+      var row1 = el("div", "row1");
+      var nameInput = document.createElement("input");
+      nameInput.type = "text"; nameInput.value = t.name;
+      nameInput.addEventListener("input", function () { t.name = nameInput.value; });
+      row1.appendChild(nameInput);
+
+      var resumeSelect = document.createElement("select");
+      resumeSelect.className = "resumepick";
+      resumeFileNames.forEach(function (fname) {
+        var o = document.createElement("option");
+        o.value = fname; o.textContent = fname;
+        if (fname === t.resumeFile) o.selected = true;
+        resumeSelect.appendChild(o);
+      });
+      resumeSelect.addEventListener("change", function () { t.resumeFile = resumeSelect.value; });
+      row1.appendChild(resumeSelect);
+
+      var rm = el("button", "removescan", "Remove");
+      rm.type = "button";
+      rm.onclick = function () {
+        pendingScanTracks.splice(idx, 1);
+        renderScanReview(resumeFileNames);
+        scanSaveBtn.hidden = pendingScanTracks.length === 0;
+      };
+      row1.appendChild(rm);
+      row.appendChild(row1);
+
+      var row2 = el("div", "row2");
+      row2.appendChild(labeledInput("Role keywords", t.role, function (v) { t.role = v; }));
+      row2.appendChild(labeledInput("City", t.city, function (v) { t.city = v; }));
+      row2.appendChild(labeledInput("Exp min", t.expMin, function (v) { t.expMin = v; }, "number"));
+      row2.appendChild(labeledInput("Exp max", t.expMax, function (v) { t.expMax = v; }, "number"));
+      row.appendChild(row2);
+
+      if (t.rationale) row.appendChild(el("div", "rationale", escapeHtml(t.rationale)));
+
+      scanBody.appendChild(row);
+    });
+  }
+
+  function labeledInput(placeholder, value, onChange, type) {
+    var inp = document.createElement("input");
+    inp.type = type || "text";
+    inp.placeholder = placeholder;
+    inp.value = value == null ? "" : value;
+    inp.addEventListener("input", function () { onChange(inp.value); });
+    return inp;
+  }
+
+  scanSaveBtn.addEventListener("click", function () {
+    if (!pendingScanTracks || pendingScanTracks.length === 0) return;
+    var toMerge = pendingScanTracks.map(function (t) {
+      return {
+        name: t.name,
+        resumeHint: t.resumeFile,
+        rationale: t.rationale,
+        defaultQuery: {
+          role: t.role,
+          city: t.city,
+          expMin: t.expMin === "" ? undefined : Number(t.expMin),
+          expMax: t.expMax === "" ? undefined : Number(t.expMax)
+        }
+      };
+    });
+    Store.mergeTracks(toMerge);
+    populateTrackSelect();
+    renderAll();
+    scanModal.hidden = true;
+    scanModalStatus.textContent = "";
+    setStatus(toMerge.length + " role track(s) saved from your resumes. Pick one above to search.");
+  });
 
   /* ---------------- board ---------------- */
   var chipRow = document.getElementById("chipRow");

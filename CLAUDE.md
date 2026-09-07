@@ -142,11 +142,36 @@ browser storage).
 
 **Working on `site/` itself:** it's plain HTML/CSS/vanilla JS, classic (non-module) `<script>`
 tags for maximum portability (works via a local static server or GitHub Pages; ES modules were
-avoided because they don't reliably load over `file://`). Verify changes with `python3 -m
-http.server` from inside `site/` before considering a change done — see the `run` skill or just
-serve it directly. Keep the Firecrawl API calls in `firecrawl.js` matching the real REST API
+avoided in the main app because they don't reliably load over `file://` — `scan.js` is the one
+exception, see below, since its feature already requires http(s)). Verify changes with `python3
+-m http.server` from inside `site/` before considering a change done — see the `run` skill or
+just serve it directly. Keep the Firecrawl API calls in `firecrawl.js` matching the real REST API
 (`/v1/search`, `/v1/scrape` with `jsonOptions.schema` for structured extraction) — don't guess at
 undocumented parameters; the shapes currently in that file were confirmed against live responses.
+
+**`scan.js` — "Scan my folder":** reads `resumes/*.pdf`/`.docx` and `answers.md`/`questions.md`
+straight off the visitor's disk via the File System Access API (`window.showDirectoryPicker()`,
+Chromium-only, requires http(s) — not `file://`; a `<input webkitdirectory>` fallback handles
+browsers without it, one-shot/read-only), extracts text client-side (`pdf.js` for PDFs — loaded
+as an ES module via dynamic `import()`, confirmed cdnjs only ships `.mjs` builds at the pinned
+version; `JSZip` + `DOMParser` for `.docx`, mirroring the `word/document.xml` → `<w:t>` text-run
+extraction the chat workflow does with Python's `zipfile`/`ElementTree`), then calls Claude's
+Messages API **directly from the browser** to infer role tracks and map each resume to one:
+- Confirmed live (2026-09-07): `api.anthropic.com` allows direct browser calls, but only with
+  the `anthropic-dangerous-direct-browser-access: true` header sent alongside `x-api-key` and
+  `anthropic-version` — the OPTIONS preflight returns `access-control-allow-origin: *` only when
+  that header is requested; without it, CORS is refused. Same trust model as the Firecrawl key:
+  the visitor's own key, sent only to Anthropic, never touching a server of ours.
+- Model used: `claude-sonnet-5`. Structured output comes from forcing a tool call
+  (`tool_choice: {type:"tool", name:"save_role_tracks"}`) rather than parsing free text — more
+  reliable, and the shape lands straight in `content[].input`.
+- Nothing is written to `Store` until the visitor reviews the proposed tracks in a modal and
+  clicks "Save these tracks" (`Store.mergeTracks`, matched by track name — never silently
+  overwrites an unrelated track).
+- If asked to extend this (e.g. also scan `results.xlsx`), keep the same shape: extract text
+  client-side, truncate per-file before sending (current cap: `MAX_CHARS_PER_FILE` in
+  `scan.js`), and always route new data through the same review-before-save modal rather than
+  writing to `Store` directly from the analysis step.
 
 ## Working notes for future sessions
 

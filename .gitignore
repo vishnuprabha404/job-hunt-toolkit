@@ -1,5 +1,6 @@
 # --- Personal to whoever runs this toolkit — never committed ---
 answers.md
+search.md
 resumes/*
 !resumes/.gitkeep
 !resumes/README.md

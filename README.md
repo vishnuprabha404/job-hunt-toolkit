@@ -30,14 +30,29 @@ file requests — serving it, even just for a minute, avoids that entirely.)
 1. Click **Settings** → paste a free Firecrawl API key from [firecrawl.dev](https://www.firecrawl.dev)
    (1,000 credits/month, no card). You can also skip this — search still works keyless, just at a
    lower rate limit.
-2. Still in Settings, add your role tracks (e.g. "IT Support", "Software Developer") and, if you
-   want the reminder, which resume file to use for each.
+2. Set up your role tracks either way:
+   - **Automatically** — paste a Claude API key from [console.anthropic.com](https://console.anthropic.com)
+     into Settings, then click **Scan my folder…** on the New Search tab and point it at this
+     repo's folder. Claude reads whatever's in `resumes/` (plus `answers.md`/`questions.md` if
+     you have them) and proposes role tracks — name, which resume fits each, and sensible
+     search defaults — for you to review and save. Needs a Chromium-based browser (Chrome, Edge,
+     Brave) for the folder picker, and the page must be served over `http(s)`, not opened as a
+     bare file — the `python3 -m http.server` step above covers that.
+   - **Manually** — in Settings, add your role tracks (e.g. "IT Support", "Software Developer")
+     and, if you want the reminder, which resume file to use for each.
 3. Go to **New search**, fill in role / city / experience / freshness, hit Search.
 4. Results land on **My board** — filter by track, mark things "Applied", export/import CSV.
 
-Everything (your API key, your listings, your "Applied" marks) lives in your browser's local
-storage. Nothing is sent anywhere except directly to `api.firecrawl.dev`. Clearing your browser
-data clears your board — export a CSV first if you want a backup.
+**On the "Scan my folder" feature:** it sends the text of your resume(s) (and `answers.md`/
+`questions.md` if present) to Claude's API, using your own key, called directly from your
+browser — same trust model as the Firecrawl key: nothing passes through any server of ours.
+Everything it proposes lands in a review screen first; nothing is saved until you click "Save
+these tracks," and you can edit or remove any row before saving.
+
+Everything (your API keys, your listings, your "Applied" marks) lives in your browser's local
+storage. Nothing is sent anywhere except directly to `api.firecrawl.dev` (search) and, only if
+you use "Scan my folder," `api.anthropic.com` (resume analysis). Clearing your browser data
+clears your board — export a CSV first if you want a backup.
 
 Want it reachable from your phone too, without running a local server? Turn on **GitHub Pages**
 for this repo (Settings → Pages → deploy from `main` / `/site`) and open the resulting URL — it's
@@ -79,6 +94,9 @@ site/                         the standalone job board (open in any browser)
   app.js                      UI logic
   store.js                    localStorage persistence
   firecrawl.js                thin wrapper over Firecrawl's REST API
+  scan.js                     "Scan my folder": reads resumes/notes off disk, asks Claude's
+                               API to infer role tracks (File System Access API + pdf.js/JSZip
+                               for text extraction — all client-side)
   styles.css
 questions.md                  checklist to work through before searching
 answers.example.md            copy to answers.md and fill in (gitignored)
